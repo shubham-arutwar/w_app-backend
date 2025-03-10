@@ -1,4 +1,4 @@
-package com.w_app.w_app;
+package com.w_app;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

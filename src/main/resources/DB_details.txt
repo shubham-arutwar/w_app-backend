@@ -1,0 +1,100 @@
+postgres version - 15.2
+
+CREATE DATABASE w_app_db;
+
+\c w_app_db;
+
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    phone_number VARCHAR(15) UNIQUE,
+    password_hash TEXT NOT NULL,
+    profile_picture TEXT,
+    bio TEXT,
+    date_of_birth DATE,
+    gender VARCHAR(10) CHECK (gender IN ('Male', 'Female')),
+    timezone VARCHAR(50) DEFAULT 'UTC',
+    language VARCHAR(10) DEFAULT 'en',
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'deleted')),
+    last_login TIMESTAMP DEFAULT NOW(),
+    account_type VARCHAR(20) DEFAULT 'free',
+    email_verified BOOLEAN DEFAULT FALSE,
+    phone_verified BOOLEAN DEFAULT FALSE,
+    is_admin BOOLEAN DEFAULT FALSE,
+    created_on TIMESTAMP DEFAULT NOW(),
+    modified_by TEXT DEFAULT current_user,
+    modified_on TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE goals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    objectives TEXT,
+    motivation TEXT,
+    metrics TEXT,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    parent_goal_id UUID REFERENCES goals(id) ON DELETE SET NULL,
+    priority VARCHAR(10) CHECK (priority IN ('High', 'Medium', 'Low')) DEFAULT 'Medium',
+    progress DECIMAL(5,2) CHECK (progress BETWEEN 0 AND 100) DEFAULT 0.00,
+    status VARCHAR(20) CHECK (status IN ('Not Started', 'In Progress', 'Completed', 'On Hold')) DEFAULT 'Not Started',
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_on TIMESTAMP DEFAULT NOW(),
+    modified_by TEXT DEFAULT current_user,
+    modified_on TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    goal_id UUID REFERENCES goals(id) ON DELETE CASCADE,
+    task TEXT NOT NULL,
+    is_done BOOLEAN DEFAULT FALSE,
+    task_order INT NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_on TIMESTAMP DEFAULT NOW(),
+    modified_by TEXT DEFAULT current_user,
+    modified_on TIMESTAMP DEFAULT NOW()
+);
+
+
+CREATE OR REPLACE FUNCTION update_modified_on()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.modified_on = NOW();
+    NEW.modified_by = current_user;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- Apply to users
+CREATE TRIGGER trg_update_users
+BEFORE UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION update_modified_on();
+
+-- Apply to goals
+CREATE TRIGGER trg_update_goals
+BEFORE UPDATE ON goals
+FOR EACH ROW EXECUTE FUNCTION update_modified_on();
+
+-- Apply to tasks
+CREATE TRIGGER trg_update_tasks
+BEFORE UPDATE ON tasks
+FOR EACH ROW EXECUTE FUNCTION update_modified_on();
+
+
+-- User for server
+CREATE USER w_app_server WITH PASSWORD 'w_app_server';
+GRANT CONNECT ON DATABASE w_app_db TO w_app_server;
+GRANT USAGE ON SCHEMA public TO w_app_server;
+GRANT SELECT, INSERT, UPDATE, REFERENCES, TRIGGER ON ALL TABLES IN SCHEMA public TO w_app_server;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO w_app_server;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO w_app_server;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO w_app_server;
+
+
